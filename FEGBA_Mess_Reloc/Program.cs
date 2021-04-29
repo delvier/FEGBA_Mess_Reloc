@@ -272,6 +272,7 @@ namespace FEGBA_Mess_Reloc
                     {
                         BinaryWriter bw = new(new FileStream($"{Path.GetDirectoryName(path)}/{Path.GetFileNameWithoutExtension(path)}_Rewrite{Path.GetExtension(path)}", FileMode.Create));
                         bw.Write(filedata);
+                        bw.Close();
                     }
                     catch (Exception e)
                     {
