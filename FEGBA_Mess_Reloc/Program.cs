@@ -5,94 +5,13 @@ using System.Text;
 
 namespace FEGBA_Mess_Reloc
 {
-
-    public interface ROMINFO
-    {
-        String GameID();
-        uint MessagePointer(); // Position of String table
-        uint MessageNo(); // Number of Huffman coded strings
-        uint MessageStringLoc(); // Position of String #0
-        uint MessageStringSpaceSize(); // Usually pos of HuffmanLoc 0 MessageStringLoc
-        uint HuffmanLoc(); // Beginning position of Huffman Table
-        uint HuffmanRoot(); // Pointer to the root node of Huffman Tree structure
-        uint AntiHuffmanFuncLoc(); // Position where anti-huffman patch is applied
-        uint AntiHuffmanCheck(); // Four-byte check data if anti-huffman is applied
-
-    }
-    sealed class FE6J : ROMINFO
-    {
-        public string GameID() { return "AFEJ"; }
-        public uint MessagePointer() { return 0xf635c; }
-        public uint MessageNo() { return 0xd0d; }
-        public uint MessageStringLoc() { return 0x9fac0; }
-        public uint MessageStringSpaceSize() { return 0xf300c - 0x9fac0; }
-        public uint HuffmanLoc() { return 0xf300c; }
-        public uint HuffmanRoot() { return 0xf6358; }
-        public uint AntiHuffmanFuncLoc() { return 0x384c; }
-        public uint AntiHuffmanCheck() { return 0xb002b503; }
-    }
-    sealed class FE7J : ROMINFO
-    {
-        public string GameID() { return "AE7J"; }
-        public uint MessagePointer() { return 0xbbb370; }
-        public uint MessageNo() { return 0x1234; }
-        public uint MessageStringLoc() { return 0xb36950; }
-        public uint MessageStringSpaceSize() { return 0xbb72e0 - 0xb36950; }
-        public uint HuffmanLoc() { return 0xbb72e0; }
-        public uint HuffmanRoot() { return 0xbbb36c; }
-        public uint AntiHuffmanFuncLoc() { return 0x13324; }
-        public uint AntiHuffmanCheck() { return 0x1c284902; }
-    }
-    sealed class FE7U : ROMINFO
-    {
-        public string GameID() { return "AE7E"; }
-        public uint MessagePointer() { return 0xb808ac; }
-        public uint MessageNo() { return 0x133d; }
-        public uint MessageStringLoc() { return 0xaeae8c; }
-        public uint MessageStringSpaceSize() { return 0xb7d71c - 0xaeae8c; }
-        public uint HuffmanLoc() { return 0xb7d71c; }
-        public uint HuffmanRoot() { return 0xb808a8; }
-        public uint AntiHuffmanFuncLoc() { return 0x12c6c; }
-        public uint AntiHuffmanCheck() { return 0x1c284902; }
-    }
-    sealed class FE8J : ROMINFO
-    {
-        public string GameID() { return "BE8J"; }
-        public uint MessagePointer() { return 0x14d08c; }
-        public uint MessageNo() { return 0xd0a; }
-        public uint MessageStringLoc() { return 0xed7f4; }
-        public uint MessageStringSpaceSize() { return 0x14929c - 0xed7f4; }
-        public uint HuffmanLoc() { return 0x14929c; }
-        public uint HuffmanRoot() { return 0x14d088; }
-        public uint AntiHuffmanFuncLoc() { return 0x2af4; }
-        public uint AntiHuffmanCheck() { return 0x0fc2b500; }
-    }
-    sealed class FE8U : ROMINFO
-    {
-        public string GameID() { return "BE8E"; }
-        public uint MessagePointer() { return 0x15d48c; }
-        public uint MessageNo() { return 0xd4b; }
-        public uint MessageStringLoc() { return 0xe8414; }
-        public uint MessageStringSpaceSize() { return 0x15a72c - 0xe8414; }
-        public uint HuffmanLoc() { return 0x15a72c; }
-        public uint HuffmanRoot() { return 0x15d488; }
-        public uint AntiHuffmanFuncLoc() { return 0x2ba4; }
-        public uint AntiHuffmanCheck() { return 0x0fc2b500; }
-    }
-
-    class Node
-    {
-        public Node left, right;
-        public ushort value;
-    }
-
     class Program
     {
         public static Node BuildBinTree(byte[] data, int loc, int val)
         {
             Node node = new();
-            UInt16 leftVal = BitConverter.ToUInt16(data.Skip(loc + val * 4).Take(2).ToArray());
-            UInt16 rightVal = BitConverter.ToUInt16(data.Skip(loc + val * 4 + 2).Take(2).ToArray());
+            ushort leftVal = BitConverter.ToUInt16(data.Skip(loc + val * 4).Take(2).ToArray());
+            ushort rightVal = BitConverter.ToUInt16(data.Skip(loc + val * 4 + 2).Take(2).ToArray());
             if (rightVal != 0xffff)
             {
                 node.left = BuildBinTree(data, loc, leftVal);
@@ -110,13 +29,11 @@ namespace FEGBA_Mess_Reloc
         {
             uint headLoc = BitConverter.ToUInt32(data.Skip(root).Take(4).ToArray()) - 0x8000000;
             Node head = new();
-            UInt16 leftVal = BitConverter.ToUInt16(data.Skip((int)headLoc).Take(2).ToArray());
-            UInt16 rightVal = BitConverter.ToUInt16(data.Skip((int)headLoc + 2).Take(2).ToArray());
+            ushort leftVal = BitConverter.ToUInt16(data.Skip((int)headLoc).Take(2).ToArray());
+            ushort rightVal = BitConverter.ToUInt16(data.Skip((int)headLoc + 2).Take(2).ToArray());
             if (rightVal != 0xffff)
             {
-                Console.WriteLine("Taking left...");
                 head.left = BuildBinTree(data, loc, leftVal);
-                Console.WriteLine("Taking right...");
                 head.right = BuildBinTree(data, loc, rightVal);
             }
             else
@@ -168,14 +85,12 @@ namespace FEGBA_Mess_Reloc
         }
         static void Main(string[] args)
         {
-            MemoryStream memoryStream = new MemoryStream();
-            BinaryWriter binaryWriter = new BinaryWriter(memoryStream);
             string path;
             try
             {
                 path = args[0].Trim('"');
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Console.WriteLine("Write the path of file you want to modify: ");
                 path = Console.ReadLine().Trim('"');
@@ -190,7 +105,7 @@ namespace FEGBA_Mess_Reloc
                     byte[] filedata = File.ReadAllBytes(path);
                     string romtype = Encoding.Default.GetString(filedata.Skip(typeoffset).Take(4).ToArray());
 
-                    ROMINFO rominfo = new FE6J();
+                    IROMINFO rominfo = new FE6J();
                     if (romtype.Equals("AFEJ"))
                     {
                         rominfo = new FE6J();
@@ -270,12 +185,13 @@ namespace FEGBA_Mess_Reloc
                     }
                     try
                     {
-                        BinaryWriter bw = new(new FileStream($"{Path.GetDirectoryName(path)}/{Path.GetFileNameWithoutExtension(path)}_Rewrite{Path.GetExtension(path)}", FileMode.Create));
+                        BinaryWriter bw = new(new FileStream($"{Path.GetDirectoryName(path)}{Path.DirectorySeparatorChar}{Path.GetFileNameWithoutExtension(path)}_Rewrite{Path.GetExtension(path)}", FileMode.Create));
                         bw.Write(filedata);
                         bw.Close();
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine($"{e}");
                         Console.WriteLine("There is an output error.");
                     }
                 }
@@ -286,7 +202,7 @@ namespace FEGBA_Mess_Reloc
             }
             catch (Exception e)
             {
-                Console.WriteLine("This is not a file.");
+                Console.WriteLine($"{e}");
             }
         }
     }

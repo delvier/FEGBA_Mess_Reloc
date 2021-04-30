@@ -18,4 +18,4 @@ Even if the original location for strings are occupied by other data, like graph
 The output file name will be always ``{name}_Rewrite.{ext}``, so don't worry for the input work to be overwritten.
 
 ## How this works
-Get the Huffman table from the ROM (because the bit sequence for null is needed), then copy encoded strings, then zero-fill where the strings were, and then relocate strings from the start of the original string location.
+Get the Huffman table from the ROM (because boundaries between characters cannot be found without it), then copy encoded strings, then zero-fill where the strings were, and then relocate strings from the start of the original string location.
