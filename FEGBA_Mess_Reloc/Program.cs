@@ -83,6 +83,111 @@ namespace FEGBA_Mess_Reloc
             }
             return output;
         }
+        public static void Reloc(string path)
+        {
+            if (File.Exists(path))
+            {
+                int typeoffset = 0xac;
+                string ext = Path.GetExtension(path);
+                string filename = Path.GetFileNameWithoutExtension(path);
+                byte[] filedata = File.ReadAllBytes(path);
+                string romtype = Encoding.Default.GetString(filedata.Skip(typeoffset).Take(4).ToArray());
+
+                IROMINFO rominfo = new FE6J();
+                if (romtype.Equals("AFEJ"))
+                {
+                    rominfo = new FE6J();
+                }
+                else if (romtype.Equals("AE7J"))
+                {
+                    rominfo = new FE7J();
+                }
+                else if (romtype.Equals("AE7E"))
+                {
+                    rominfo = new FE7U();
+                }
+                else if (romtype.Equals("BE8J"))
+                {
+                    rominfo = new FE8J();
+                }
+                else if (romtype.Equals("BE8U"))
+                {
+                    rominfo = new FE8U();
+                }
+                else
+                {
+                    Console.WriteLine($"The file {Path.GetFileName(path)} is currently unsupported, or not a Game Boy Advance Fire Emblem ROM.");
+                    return;
+                }
+                uint antiHuff = BitConverter.ToUInt32(filedata.Skip((int)rominfo.AntiHuffmanFuncLoc()).Take(4).ToArray());
+                if (antiHuff == rominfo.AntiHuffmanCheck())
+                {
+                    Console.WriteLine("ROMs that anti-huffman patch is applied are not supported.");
+                    return;
+                }
+                uint[] oldPointer = new uint[rominfo.MessageNo() + 1];
+                byte[][] messages = new byte[rominfo.MessageNo() + 1][];
+                for (int i = 0; i <= rominfo.MessageNo(); i++)
+                {
+                    oldPointer[i] = BitConverter.ToUInt32(filedata.Skip((int)rominfo.MessagePointer() + 4 * i).Take(4).ToArray());
+                }
+                Console.WriteLine("Constructing Huffman Table...");
+                Node huff = RipHuffman(filedata, (int)rominfo.HuffmanLoc(), (int)rominfo.HuffmanRoot());
+                Console.WriteLine("Extracting messages...");
+                int len = 0;
+                for (int i = 0; i <= rominfo.MessageNo(); i++)
+                {
+                    Console.Write($"Reading message {i} of {rominfo.MessageNo()}: ");
+                    messages[i] = GetMessageBytes(filedata, (int)oldPointer[i] - 0x8000000, huff);
+                    Console.WriteLine($"Size: {messages[i].Length}");
+                    len += messages[i].Length;
+                }
+                Console.Write("Cleaning space...");
+                for (int i = 0; i <= rominfo.MessageNo(); i++)
+                {
+                    for (int ii = 0; ii < messages[i].Length; ii++)
+                    {
+                        filedata[oldPointer[i] + ii - 0x8000000] = 0;
+                    }
+                }
+                if (len > (int)rominfo.MessageStringSpaceSize())
+                {
+                    Console.WriteLine($"Free space is not enough: {len} is bigger than {rominfo.MessageStringSpaceSize()}. Aborting.");
+                    return;
+                }
+                Console.WriteLine("Relocating messages...");
+                uint[] newPointer = new uint[rominfo.MessageNo() + 1];
+                newPointer[0] = rominfo.MessageStringLoc() + 0x8000000;
+                for (int i = 0; i <= rominfo.MessageNo(); i++)
+                {
+                    if (i > 0)
+                    {
+                        newPointer[i] = newPointer[i - 1] + (uint)messages[i - 1].Length;
+                    }
+                    for (int ii = 0; ii < messages[i].Length; ii++)
+                    {
+                        filedata[newPointer[i] + ii - 0x8000000] = messages[i][ii];
+                    }
+                    Array.Copy(BitConverter.GetBytes(newPointer[i]), 0, filedata, rominfo.MessagePointer() + i * 4, 4);
+                    Console.WriteLine($"Wrote message {i} of {rominfo.MessageNo()} at {newPointer[i]:X}");
+                }
+                try
+                {
+                    BinaryWriter bw = new(new FileStream($"{Path.GetDirectoryName(path)}{Path.DirectorySeparatorChar}{Path.GetFileNameWithoutExtension(path)}_Rewrite{Path.GetExtension(path)}", FileMode.Create));
+                    bw.Write(filedata);
+                    bw.Close();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"{e}");
+                    Console.WriteLine("There is an output error.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("File does not exist.");
+            }
+        }
         static void Main(string[] args)
         {
             string path;
@@ -97,108 +202,7 @@ namespace FEGBA_Mess_Reloc
             }
             try
             {
-                if (File.Exists(path))
-                {
-                    int typeoffset = 0xac;
-                    string ext = Path.GetExtension(path);
-                    string filename = Path.GetFileNameWithoutExtension(path);
-                    byte[] filedata = File.ReadAllBytes(path);
-                    string romtype = Encoding.Default.GetString(filedata.Skip(typeoffset).Take(4).ToArray());
-
-                    IROMINFO rominfo = new FE6J();
-                    if (romtype.Equals("AFEJ"))
-                    {
-                        rominfo = new FE6J();
-                    }
-                    else if (romtype.Equals("AE7J"))
-                    {
-                        rominfo = new FE7J();
-                    }
-                    else if (romtype.Equals("AE7E"))
-                    {
-                        rominfo = new FE7U();
-                    }
-                    else if (romtype.Equals("BE8J"))
-                    {
-                        rominfo = new FE8J();
-                    }
-                    else if (romtype.Equals("BE8U"))
-                    {
-                        rominfo = new FE8U();
-                    }
-                    else
-                    {
-                        Console.WriteLine($"The file {Path.GetFileName(path)} is currently unsupported, or not a Game Boy Advance Fire Emblem ROM.");
-                        return;
-                    }
-                    uint antiHuff = BitConverter.ToUInt32(filedata.Skip((int)rominfo.AntiHuffmanFuncLoc()).Take(4).ToArray());
-                    if (antiHuff == rominfo.AntiHuffmanCheck())
-                    {
-                        Console.WriteLine("ROMs that anti-huffman patch is applied are not supported.");
-                        return;
-                    }
-                    uint[] oldPointer = new uint[rominfo.MessageNo() + 1];
-                    byte[][] messages = new byte[rominfo.MessageNo() + 1][];
-                    for (int i = 0; i <= rominfo.MessageNo(); i++)
-                    {
-                        oldPointer[i] = BitConverter.ToUInt32(filedata.Skip((int)rominfo.MessagePointer() + 4 * i).Take(4).ToArray());
-                    }
-                    Console.WriteLine("Constructing Huffman Table...");
-                    Node huff = RipHuffman(filedata, (int)rominfo.HuffmanLoc(), (int)rominfo.HuffmanRoot());
-                    Console.WriteLine("Extracting messages...");
-                    int len = 0;
-                    for (int i = 0; i <= rominfo.MessageNo(); i++)
-                    {
-                        Console.Write($"Reading message {i} of {rominfo.MessageNo()}: ");
-                        messages[i] = GetMessageBytes(filedata, (int)oldPointer[i] - 0x8000000, huff);
-                        Console.WriteLine($"Size: {messages[i].Length}");
-                        len += messages[i].Length;
-                    }
-                    Console.Write("Cleaning space...");
-                    for (int i = 0; i <= rominfo.MessageNo(); i++)
-                    {
-                        for (int ii = 0; ii < messages[i].Length; ii++)
-                        {
-                            filedata[oldPointer[i] + ii - 0x8000000] = 0;
-                        }
-                    }
-                    if (len > (int)rominfo.MessageStringSpaceSize())
-                    {
-                        Console.WriteLine($"Free space is not enough: {len} is bigger than {rominfo.MessageStringSpaceSize()}. Aborting.");
-                        return;
-                    }
-                    Console.WriteLine("Relocating messages...");
-                    uint[] newPointer = new uint[rominfo.MessageNo() + 1];
-                    newPointer[0] = rominfo.MessageStringLoc() + 0x8000000;
-                    for (int i = 0; i <= rominfo.MessageNo(); i++)
-                    {
-                        if (i > 0)
-                        {
-                            newPointer[i] = newPointer[i - 1] + (uint)messages[i - 1].Length;
-                        }
-                        for (int ii = 0; ii < messages[i].Length; ii++)
-                        {
-                            filedata[newPointer[i] + ii - 0x8000000] = messages[i][ii];
-                        }
-                        Array.Copy(BitConverter.GetBytes(newPointer[i]), 0, filedata, rominfo.MessagePointer() + i * 4, 4);
-                        Console.WriteLine($"Wrote message {i} of {rominfo.MessageNo()} at {newPointer[i]:X}");
-                    }
-                    try
-                    {
-                        BinaryWriter bw = new(new FileStream($"{Path.GetDirectoryName(path)}{Path.DirectorySeparatorChar}{Path.GetFileNameWithoutExtension(path)}_Rewrite{Path.GetExtension(path)}", FileMode.Create));
-                        bw.Write(filedata);
-                        bw.Close();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"{e}");
-                        Console.WriteLine("There is an output error.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("File does not exist.");
-                }
+                Reloc(path);
             }
             catch (Exception e)
             {
