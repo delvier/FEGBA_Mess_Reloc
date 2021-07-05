@@ -13,8 +13,6 @@ Currently, this supports ones based on one of the following:
 This doesn't support ones that the anti-Huffman patch is applied, since the unencoded strings are likely not fit to the original location.
 Because of a similar reason, even if the anti-Huffman patch is not applied, this aborts the job if the total length of encoded strings exceeds the capacity.
 
-Even if the original location for strings are occupied by other data, like graphics or fonts, this currently ignores and overwrites them.
-
 The output file name will be always ``{name}_Rewrite.{ext}``, so don't worry for the input work to be overwritten.
 
 ## How this works
