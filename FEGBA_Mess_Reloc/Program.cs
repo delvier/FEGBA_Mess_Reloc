@@ -166,6 +166,11 @@ namespace FEGBA_Mess_Reloc
                     }
                     for (int ii = 0; ii < messages[i].Length; ii++)
                     {
+                        if (filedata[newPointer[i] + ii - 0x8000000] != 0)
+                        {
+                            Console.WriteLine($"Potential data collision detected. Aborting: Byte is {filedata[newPointer[i] + ii - 0x8000000]:X} at {(newPointer[i] + ii - 0x8000000):X}");
+                            return;
+                        }
                         filedata[newPointer[i] + ii - 0x8000000] = messages[i][ii];
                     }
                     Array.Copy(BitConverter.GetBytes(newPointer[i]), 0, filedata, rominfo.MessagePointer() + i * 4, 4);
